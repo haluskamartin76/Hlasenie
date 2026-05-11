@@ -9,7 +9,13 @@ from datetime import datetime
 # --- NASTAVENIA ---
 st.set_page_config(page_title="Systém hlásení", layout="centered")
 
-# Prepojenie na Google Sheets (používa tvoje Secrets presne tak, ako sú)
+# --- OPRAVA CHYBNÝCH ADRIES (Tento blok opraví 404 chybu) ---
+if "connections" in st.secrets and "gsheets" in st.secrets.connections:
+    # Prepíšeme nefunkčné adresy na tie, ktoré Google vyžaduje
+    st.secrets.connections.gsheets["auth_uri"] = "https://google.com"
+    st.secrets.connections.gsheets["token_uri"] = "https://googleapis.com"
+
+# Prepojenie na Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 # Tvoje údaje
@@ -51,11 +57,10 @@ with t1:
         
         if st.form_submit_button("Uložiť hlásenie"):
             try:
-                # Pokus o načítanie existujúcich dát
+                # Skúsime načítať existujúce dáta
                 try:
                     df_existing = conn.read(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU)
                 except Exception:
-                    # Ak list neexistuje alebo nastala chyba, pripravíme prázdny DF s hlavičkou
                     df_existing = pd.DataFrame(columns=["Datum", "Pracovisko", "Stav", "Poznamka", "Odoslane"])
                 
                 # Nový riadok
@@ -67,10 +72,8 @@ with t1:
                     "Odoslane": "Nie"
                 }])
                 
-                # Spojenie dát
+                # Spojenie a zápis
                 updated_df = pd.concat([df_existing, new_row], ignore_index=True)
-                
-                # Zápis späť do Google Sheets
                 conn.update(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU, data=updated_df)
                 st.success("Hlásenie úspešne uložené!")
             except Exception as e:
@@ -84,7 +87,6 @@ with t2:
         try:
             df = conn.read(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU)
             if df is not None and not df.empty:
-                # Ošetrenie stĺpca Odoslane
                 if 'Odoslane' not in df.columns:
                     df['Odoslane'] = 'Nie'
                 
@@ -107,7 +109,5 @@ with t2:
                             st.rerun()
                 else:
                     st.info("Žiadne nové hlásenia.")
-            else:
-                st.info("Tabuľka je prázdna.")
         except Exception as e:
             st.error(f"Chyba: {e}")
