@@ -12,12 +12,12 @@ st.set_page_config(page_title="Systém hlásení", layout="centered")
 # Prepojenie na Google Sheets (používa nastavenia zo Secrets)
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# URL tvojej tabuľky
-URL_TABULKY = "https://docs.google.com/spreadsheets/d/11mgxqbYWXZ97HA7Fz2Sihqaz9o4TDzK2Ac9iKShd4PQ/edit?usp=sharing"
+# Tvoja URL tabuľky a názov listu
+URL_TABULKY = "https://google.com"
+NAZOV_LISTU = "Hlasenia_Data"
 
 # --- FUNKCIA NA MAIL ---
 def poslat_email(text, prijemca):
-    # !!! SEM DOPLŇ SVOJE OVERENÉ ÚDAJE !!!
     MOJ_MAIL = "zmenovehlasenie@gmail.com" 
     MOJE_HESLO = "qvib ewfm liku yfum"
 
@@ -25,7 +25,7 @@ def poslat_email(text, prijemca):
     msg['From'] = MOJ_MAIL
     msg['To'] = prijemca
     msg['Subject'] = f"Denný sumár hlásení - {datetime.now().strftime('%d.%m.%Y')}"
-    msg.attach(MIMEText(text, 'plain'))
+    msg.attach(MIMEText(text, 'plain', 'utf-8'))
 
     try:
         server = smtplib.SMTP("://gmail.com", 587)
@@ -51,10 +51,10 @@ with t1:
         
         if st.form_submit_button("Uložiť hlásenie"):
             try:
-                # Načítame aktuálne dáta z tabuľky
-                df_existing = conn.read(spreadsheet=URL_TABULKY)
+                # Načítanie existujúcich dát z konkrétneho listu
+                df_existing = conn.read(spreadsheet=URL_TABULKY, worksheet=NAZOV_LISTU)
                 
-                # Vytvoríme nový riadok
+                # Vytvorenie nového riadku (stĺpce presne podľa tvojho zadania)
                 new_row = pd.DataFrame([{
                     "Datum": datetime.now().strftime("%d.%m.%Y %H:%M"),
                     "Pracovisko": prac,
@@ -63,22 +63,22 @@ with t1:
                     "Odoslane": "Nie"
                 }])
                 
-                # Spojíme staré dáta s novým riadkom
+                # Spojenie a aktualizácia
                 updated_df = pd.concat([df_existing, new_row], ignore_index=True)
-                
-                # Zapíšeme späť do tabuľky
-                conn.update(spreadsheet=URL_TABULKY, data=updated_df)
-                st.success("Hlásenie bolo úspešne uložené v Google Sheets!")
+                conn.update(spreadsheet=URL_TABULKY, worksheet=NAZOV_LISTU, data=updated_df)
+                st.success("Hlásenie bolo úspešne uložené do tabuľky Hlasenia_Data!")
             except Exception as e:
-                st.error(f"Chyba pri zápise do tabuľky: {e}")
+                st.error(f"Chyba pri zápise: {e}")
 
 with t2:
+    st.subheader("Sekcia pre veliteľa")
     heslo = st.text_input("Vstupné heslo", type="password")
     if heslo == "admin123":
         try:
-            df = conn.read(spreadsheet=URL_TABULKY)
-            if not df.empty:
-                neodoslane = df[df['Odoslane'] == 'Nie']
+            df = conn.read(spreadsheet=URL_TABULKY, worksheet=NAZOV_LISTU)
+            if df is not None and not df.empty:
+                # Filtrujeme len neodoslané
+                neodoslane = df[df['Odoslane'].astype(str).str.contains('Nie', case=False, na=False)]
                 
                 if not neodoslane.empty:
                     st.write("Nové hlásenia čakajúce na odoslanie:")
@@ -91,14 +91,14 @@ with t2:
                             telo += f"📍 {r['Pracovisko']} | {r['Stav']}\n{r['Poznamka']}\n({r['Datum']})\n\n"
                         
                         if poslat_email(telo, mail_sefa):
-                            # Označíme ako odoslané v DataFrame
-                            df.loc[df['Odoslane'] == 'Nie', 'Odoslane'] = 'Ano'
-                            conn.update(spreadsheet=URL_TABULKY, data=df)
+                            # Zmena statusu na 'Ano' v hlavnom DataFrame
+                            df.loc[df['Odoslane'].astype(str).str.contains('Nie', case=False, na=False), 'Odoslane'] = 'Ano'
+                            conn.update(spreadsheet=URL_TABULKY, worksheet=NAZOV_LISTU, data=df)
                             st.success("Odoslané a archivované!")
                             st.rerun()
                 else:
-                    st.info("Momentálne nie sú žiadne nové hlásenia.")
+                    st.info("Žiadne nové hlásenia na odoslanie.")
             else:
                 st.info("Tabuľka je prázdna.")
         except Exception as e:
-            st.error(f"Chyba pri načítaní dát: {e}")
+            st.error(f"Chyba pri práci s dátami: {e}")
