@@ -6,8 +6,8 @@ from email.mime.multipart import MIMEMultipart
 # --- NASTAVENIA ---
 SMTP_SERVER = "://gmail.com"
 SMTP_PORT = 587
-SENDER_EMAIL = "tvoj-email@gmail.com"  # Mail, z ktorého sa odosiela
-SENDER_PASSWORD = "tvoj-app-password"  # Heslo aplikácie (nie bežné heslo)
+SENDER_EMAIL = "zmenovehlasenie@gmail.com"  # Mail, z ktorého sa odosiela
+SENDER_PASSWORD = "123Hrad123"  # Heslo aplikácie (nie bežné heslo)
 
 st.set_page_config(page_title="Hlásenia pracovísk", page_icon="📝")
 
