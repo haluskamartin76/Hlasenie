@@ -45,8 +45,8 @@ t1, t2 = st.tabs(["🏗️ Pracovisko", "👑 Veliteľ"])
 with t1:
     st.subheader("Nové hlásenie")
     with st.form("form_vstup", clear_on_submit=True):
-        prac = st.selectbox("Pracovisko", ["Linka A", "Linka B", "Sklad", "Expedícia"])
-        stav = st.radio("Stav zmeny", ["V poriadku", "Zdržanie", "Problém"])
+        prac = st.selectbox("Pracovisko", ["GH - Garáž Hrad", "G - Poslanecká Garáž", "W - Viedenská brána", "M - Mikulášska brána"])
+        stav = st.radio("Stav zmeny", ["V poriadku", "Závada", "Hlásenie"])
         txt = st.text_area("Hlásenie (popis)")
         
         if st.form_submit_button("Uložiť hlásenie"):
