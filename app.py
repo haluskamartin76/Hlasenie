@@ -9,11 +9,11 @@ from datetime import datetime
 # --- NASTAVENIA ---
 st.set_page_config(page_title="Systém hlásení", layout="centered")
 
-# Prepojenie na Google Sheets (používa presne tvoje nastavenia zo Secrets)
+# Prepojenie na Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Tvoje údaje
-URL_TABULKY = "https://google.com"
+# POUŽÍVAME PRIAMO ID TABUĽKY (vyrieši chybu NoValidUrlKeyFound)
+ID_TABULKY = "11mgxqbYWXZ97HA7Fz2Sihqaz9o4TDzK2Ac9iKShd4PQ"
 NAZOV_LISTU = "Hlasenia_Data"
 
 # --- FUNKCIA NA MAIL ---
@@ -51,10 +51,9 @@ with t1:
         
         if st.form_submit_button("Uložiť hlásenie"):
             try:
-                # Načítanie existujúcich dát z konkrétneho listu
-                df_existing = conn.read(spreadsheet=URL_TABULKY, worksheet=NAZOV_LISTU)
+                # Načítanie cez ID tabuľky
+                df_existing = conn.read(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU)
                 
-                # Vytvorenie nového riadku
                 new_row = pd.DataFrame([{
                     "Datum": datetime.now().strftime("%d.%m.%Y %H:%M"),
                     "Pracovisko": prac,
@@ -63,20 +62,21 @@ with t1:
                     "Odoslane": "Nie"
                 }])
                 
-                # Spojenie a aktualizácia
                 updated_df = pd.concat([df_existing, new_row], ignore_index=True)
-                conn.update(spreadsheet=URL_TABULKY, worksheet=NAZOV_LISTU, data=updated_df)
-                st.success(f"Hlásenie uložené do listu {NAZOV_LISTU}!")
+                # Update cez ID tabuľky
+                conn.update(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU, data=updated_df)
+                st.success(f"Hlásenie úspešne uložené!")
             except Exception as e:
                 st.error("Chyba pri zápise!")
-                st.exception(e) # Toto vypíše presný technický dôvod chyby
+                st.exception(e)
 
 with t2:
     st.subheader("Sekcia pre veliteľa")
     heslo = st.text_input("Vstupné heslo", type="password")
     if heslo == "admin123":
         try:
-            df = conn.read(spreadsheet=URL_TABULKY, worksheet=NAZOV_LISTU)
+            # Načítanie cez ID tabuľky
+            df = conn.read(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU)
             if df is not None and not df.empty:
                 neodoslane = df[df['Odoslane'].astype(str).str.contains('Nie', case=False, na=False)]
                 
@@ -92,7 +92,7 @@ with t2:
                         
                         if poslat_email(telo, mail_sefa):
                             df.loc[df['Odoslane'].astype(str).str.contains('Nie', case=False, na=False), 'Odoslane'] = 'Ano'
-                            conn.update(spreadsheet=URL_TABULKY, worksheet=NAZOV_LISTU, data=df)
+                            conn.update(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU, data=df)
                             st.success("Odoslané!")
                             st.rerun()
                 else:
