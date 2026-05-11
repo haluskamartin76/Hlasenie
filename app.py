@@ -37,8 +37,8 @@ except Exception as e:
 # --- FUNKCIA NA ODOSIELANIE MAILU ---
 def poslat_email(text_sumaru, prijemca):
     # RIADKY 39 A 40 - TU DOPLŇ SVOJE ÚDAJE
-    MOJ_MAIL = "tvoj-email@gmail.com" 
-    MOJE_HESLO = "tvoj-app-password"
+    MOJ_MAIL = "zmenovehlasenie@gmail.com" 
+    MOJE_HESLO = "qvib ewfm liku yfum"
 
     msg = MIMEMultipart()
     msg['From'] = MOJ_MAIL
