@@ -21,9 +21,9 @@ sh = client.open(SHEET_NAME).sheet1
 # --- FUNKCIA NA ODOSLANIE MAILU ---
 def poslat_email(text_sumaru, prijemca):
     SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
-SENDER_EMAIL = "zmenovehlasenie@gmail.com"  # Mail, z ktorého sa odosiela
-SENDER_PASSWORD = "qvib ewfm liku yfum"  # Heslo aplikácie (nie bežné heslo)
+    SMTP_PORT = 587
+    SENDER_EMAIL = "zmenovehlasenie@gmail.com"  # Mail, z ktorého sa odosiela
+    SENDER_PASSWORD = "qvib ewfm liku yfum"  # Heslo aplikácie (nie bežné heslo)
 
     msg = MIMEMultipart()
     msg['From'] = SENDER_EMAIL
