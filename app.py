@@ -7,84 +7,109 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
+# --- KONFIGURÁCIA STRÁNKY ---
+st.set_page_config(page_title="Hlásenia Pracovísk", layout="centered")
+
 # --- PRIPOJENIE KU GOOGLE SHEETS ---
 scope = ["https://googleapis.com", "https://googleapis.com"]
-# Načítanie údajov zo Streamlit Secrets
-creds_dict = st.secrets["gcp_service_account"]
-creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
-client = gspread.authorize(creds)
 
-# Názov tvojej tabuľky (musí byť presne taký istý!)
-SHEET_NAME = "Hlasenia_Data" 
-sh = client.open(SHEET_NAME).sheet1
+try:
+    # Načítanie a oprava kľúča zo Secrets
+    creds_info = st.secrets["gcp_service_account"]
+    creds_dict = dict(creds_info)
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    
+    creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
+    client = gspread.authorize(creds)
+    
+    # Názov tabuľky - uisti sa, že sa v Google Drive volá presne takto:
+    SHEET_NAME = "Hlasenia_Data" 
+    sh = client.open(SHEET_NAME).sheet1
+except Exception as e:
+    st.error(f"Chyba pripojenia (skontrolujte Secrets a názov tabuľky): {e}")
+    st.stop()
 
 # --- FUNKCIA NA ODOSLANIE MAILU ---
 def poslat_email(text_sumaru, prijemca):
+    # Sem vlož svoje overené údaje pre Gmail
     SMTP_SERVER = "smtp.gmail.com"
     SMTP_PORT = 587
-    SENDER_EMAIL = "zmenovehlasenie@gmail.com"  # Mail, z ktorého sa odosiela
-    SENDER_PASSWORD = "qvib ewfm liku yfum"  # Heslo aplikácie (nie bežné heslo)
+    SENDER_EMAIL = "zmenovehlasenie@gmail.com"  # <--- DOPLŇ SVOJ MAIL
+    SENDER_PASSWORD = "qvib ewfm liku yfum"  # <--- DOPLŇ SVOJ APP PASSWORD
 
     msg = MIMEMultipart()
     msg['From'] = SENDER_EMAIL
     msg['To'] = prijemca
-    msg['Subject'] = f"Denné hlásenia - {datetime.now().strftime('%d.%m.%Y')}"
+    msg['Subject'] = f"Denný sumár hlásení - {datetime.now().strftime('%d.%m.%Y')}"
     msg.attach(MIMEText(text_sumaru, 'plain'))
 
     server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+    server.set_debuglevel(0)
     server.starttls()
     server.login(SENDER_EMAIL, SENDER_PASSWORD)
     server.send_message(msg)
     server.quit()
 
-# --- APP ROZHRANIE ---
-st.title("Systém hlásení s Google Sheets")
+# --- ROZHRANIE APLIKÁCIE ---
+st.title("📋 Systém pracovných hlásení")
 
-tab1, tab2 = st.tabs(["📝 Pracovisko", "👑 Vedúci zmeny"])
+tab1, tab2 = st.tabs(["✍️ Vytvoriť hlásenie", "🕵️ Rozhranie veliteľa"])
 
+# --- TAB 1: PRACOVISKO ---
 with tab1:
-    st.header("Nové hlásenie")
+    st.subheader("Nové hlásenie zo zmeny")
     with st.form("form_pracovisko", clear_on_submit=True):
-        pracovisko = st.selectbox("Pracovisko", ["Linka A", "Linka B", "Sklad"])
-        stav = st.radio("Stav", ["OK", "Problém"])
-        poznamka = st.text_area("Hlásenie")
+        pracovisko = st.selectbox("Pracovisko", ["Linka A", "Linka B", "Linka C", "Sklad", "Expedícia"])
+        stav = st.select_slider("Stav prevádzky", options=["OK", "Drobné zdržanie", "Kritický problém"])
+        poznamka = st.text_area("Popis situácie / Hlásenie")
         
-        if st.form_submit_button("Uložiť hlásenie"):
+        if st.form_submit_button("Odovzdať hlásenie"):
             teraz = datetime.now().strftime("%d.%m.%Y %H:%M")
+            # Zápis do Google tabuľky (stĺpce: Datum, Pracovisko, Stav, Poznamka, Odoslane)
             sh.append_row([teraz, pracovisko, stav, poznamka, "Nie"])
-            st.success("Zapísané do Google tabuľky.")
+            st.success("Hlásenie bolo úspešne uložené do databázy.")
 
+# --- TAB 2: VELITEĽ ZMENY ---
 with tab2:
-    st.header("Administrácia")
-    heslo = st.text_input("Vstupné heslo", type="password")
+    st.subheader("Kontrola a odoslanie nadriadenému")
+    vstup_heslo = st.text_input("Zadajte prístupový kód", type="password")
     
-    if heslo == "admin123":
+    if vstup_heslo == "admin123": # <--- TVOJE HESLO PRE VELITEĽA
         data = sh.get_all_records()
-        df = pd.DataFrame(data)
         
-        if not df.empty:
-            # Filtrujeme len tie, ktoré majú v stĺpci "Odoslane" hodnotu "Nie"
+        if data:
+            df = pd.DataFrame(data)
+            # Zobraziť len tie, čo ešte neodišli mailom
             neodoslane = df[df['Odoslane'] == 'Nie']
             
             if not neodoslane.empty:
-                st.write("Čakajúce hlásenia:")
-                st.table(neodoslane)
+                st.write("Hlásenia čakajúce na odoslanie:")
+                st.dataframe(neodoslane)
                 
-                email_nadriadeneho = st.text_input("Email nadriadeného", "boss@firma.sk")
-                if st.button("Odoslať sumár"):
-                    sumar_text = "Prehľad hlásení:\n\n"
-                    for _, row in neodoslane.iterrows():
-                        sumar_text += f"{row['Pracovisko']} ({row['Datum']}): {row['Stav']} - {row['Poznamka']}\n"
-                    
-                    poslat_email(sumar_text, email_nadriadeneho)
-                    
-                    # Aktualizácia v tabuľke (zmena "Nie" na "Ano")
-                    # Toto je jednoduchší spôsob pre malú tabuľku:
-                    for i, row in enumerate(data, start=2): # start=2 kvôli hlavičke
-                        if row['Odoslane'] == 'Nie':
-                            sh.update_cell(i, 5, 'Ano')
-                    
-                    st.success("Odoslané a aktualizované!")
-                    st.rerun()
+                mail_sefa = st.text_input("Email nadriadeného (príjemca)", "sef@firma.sk")
+                
+                if st.button("Schváliť a poslať mailom"):
+                    with st.spinner("Odosielam e-mail..."):
+                        try:
+                            # Tvorba textu mailu
+                            telo = "Dobrý deň,\n\npripájam sumár hlásení z aktuálnej zmeny:\n\n"
+                            for _, r in neodoslane.iterrows():
+                                telo += f"• {r['Pracovisko']} [{r['Datum']}]: {r['Stav']}\n  Poznámka: {r['Poznamka']}\n"
+                                telo += "-"*20 + "\n"
+                            
+                            poslat_email(telo, mail_sefa)
+                            
+                            # Označenie riadkov v Google Sheets ako odoslané
+                            # Prechádzame záznamy v tabuľke (začíname od 2. riadku kvôli hlavičke)
+                            for i, row in enumerate(data, start=2):
+                                if row['Odoslane'] == 'Nie':
+                                    sh.update_cell(i, 5, 'Ano')
+                            
+                            st.success(f"Sumár bol úspešne odoslaný na {mail_sefa}!")
+                            st.rerun()
+                        except Exception as ex:
+                            st.error(f"Chyba pri odosielaní: {ex}")
             else:
-                st.info("Všetko je už odoslané.")
+                st.info("Žiadne nové hlásenia na spracovanie.")
+        else:
+            st.info("V tabuľke sa nenachádzajú žiadne dáta.")
