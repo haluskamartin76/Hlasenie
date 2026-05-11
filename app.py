@@ -9,16 +9,10 @@ from datetime import datetime
 # --- NASTAVENIA ---
 st.set_page_config(page_title="Systém hlásení", layout="centered")
 
-# --- OPRAVA CHYBNÝCH ADRIES (Tento blok opraví 404 chybu) ---
-if "connections" in st.secrets and "gsheets" in st.secrets.connections:
-    # Prepíšeme nefunkčné adresy na tie, ktoré Google vyžaduje
-    st.secrets.connections.gsheets["auth_uri"] = "https://google.com"
-    st.secrets.connections.gsheets["token_uri"] = "https://googleapis.com"
-
 # Prepojenie na Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Tvoje údaje
+# POUŽÍVAME PRIAMO ID TABUĽKY (vyrieši chybu NoValidUrlKeyFound)
 ID_TABULKY = "11mgxqbYWXZ97HA7Fz2Sihqaz9o4TDzK2Ac9iKShd4PQ"
 NAZOV_LISTU = "Hlasenia_Data"
 
@@ -57,13 +51,9 @@ with t1:
         
         if st.form_submit_button("Uložiť hlásenie"):
             try:
-                # Skúsime načítať existujúce dáta
-                try:
-                    df_existing = conn.read(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU)
-                except Exception:
-                    df_existing = pd.DataFrame(columns=["Datum", "Pracovisko", "Stav", "Poznamka", "Odoslane"])
+                # Načítanie cez ID tabuľky
+                df_existing = conn.read(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU)
                 
-                # Nový riadok
                 new_row = pd.DataFrame([{
                     "Datum": datetime.now().strftime("%d.%m.%Y %H:%M"),
                     "Pracovisko": prac,
@@ -72,10 +62,10 @@ with t1:
                     "Odoslane": "Nie"
                 }])
                 
-                # Spojenie a zápis
                 updated_df = pd.concat([df_existing, new_row], ignore_index=True)
+                # Update cez ID tabuľky
                 conn.update(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU, data=updated_df)
-                st.success("Hlásenie úspešne uložené!")
+                st.success(f"Hlásenie úspešne uložené!")
             except Exception as e:
                 st.error("Chyba pri zápise!")
                 st.exception(e)
@@ -85,11 +75,9 @@ with t2:
     heslo = st.text_input("Vstupné heslo", type="password")
     if heslo == "admin123":
         try:
+            # Načítanie cez ID tabuľky
             df = conn.read(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU)
             if df is not None and not df.empty:
-                if 'Odoslane' not in df.columns:
-                    df['Odoslane'] = 'Nie'
-                
                 neodoslane = df[df['Odoslane'].astype(str).str.contains('Nie', case=False, na=False)]
                 
                 if not neodoslane.empty:
@@ -110,4 +98,4 @@ with t2:
                 else:
                     st.info("Žiadne nové hlásenia.")
         except Exception as e:
-            st.error(f"Chyba: {e}")
+            st.error(f"Chyba pri práci s dátami: {e}")
