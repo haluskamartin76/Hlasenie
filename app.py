@@ -11,8 +11,8 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- MAIL FUNKCIA ---
 def poslat_email(text, prijemca):
-    MOJ_MAIL = "tvoj-email@gmail.com"  # <--- DOPLŇ
-    MOJE_HESLO = "tvoj-app-password"    # <--- DOPLŇ (16 znakov)
+    MOJ_MAIL = "zmenovehlasenie@gmail.com"  # <--- DOPLŇ
+    MOJE_HESLO = "qvib ewfm liku yfum"    # <--- DOPLŇ (16 znakov)
 
     msg = MIMEMultipart()
     msg['From'] = MOJ_MAIL
