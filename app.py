@@ -7,78 +7,86 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
-# --- OPRAVA PRIPOJENIA (TOTO VYRIEŠI TVOJU CHYBU) ---
+# --- AUTOMATICKÉ PRIPOJENIE ---
 scope = ["https://googleapis.com", "https://googleapis.com"]
 
 try:
-    # 1. Vezmeme dáta zo Secrets
-    creds_info = dict(st.secrets["gcp_service_account"])
+    # Načítanie a oprava kľúča
+    info = dict(st.secrets["gcp_service_account"])
+    info["private_key"] = info["private_key"].replace("\\n", "\n")
     
-    # 2. Automatické čistenie kľúča (vynúti správny formát PEM)
-    p_key = creds_info["private_key"]
-    # Odstráni prebytočné úvodzovky a opraví zalomenia riadkov
-    p_key = p_key.replace('\\n', '\n').replace('"', '').strip()
-    creds_info["private_key"] = p_key
-
-    # 3. Prihlásenie
-    creds = Credentials.from_service_account_info(creds_info, scopes=scope)
+    creds = Credentials.from_service_account_info(info, scopes=scope)
     client = gspread.authorize(creds)
     
-    # Názov tabuľky na Google Drive
+    # Otvorenie tabuľky
     sh = client.open("Hlasenia_Data").sheet1
 except Exception as e:
-    st.error(f"Ešte stále je problém s kľúčom alebo názvom tabuľky: {e}")
+    st.error(f"Chyba: {e}")
     st.stop()
 
-# --- FUNKCIA NA MAIL (TU DOPLŇ SVOJE ÚDAJE) ---
-def poslat_email(text_sumaru, prijemca):
-    SMTP_SERVER = "smtp.gmail.com"
-    SMTP_PORT = 587
-    SENDER_EMAIL = "zmenovehlasenie@gmail.com"  # <--- TVOJ MAIL
-    SENDER_PASSWORD = "qvib ewfm liku yfum"  # <--- TVOJ 16-MIESTNY KÓD
+# --- FUNKCIA NA MAIL ---
+def poslat_email(text, prijemca):
+    MOJ_MAIL = "zmenovehlasenie@gmail.com"  # <--- SEM DAJ SVOJ GMAIL
+    MOJE_HESLO = "qvib ewfm liku yfum"    # <--- SEM DAJ TIE 16 PÍSMEN
 
     msg = MIMEMultipart()
-    msg['From'] = SENDER_EMAIL
+    msg['From'] = MOJ_MAIL
     msg['To'] = prijemca
-    msg['Subject'] = f"Hlásenie zmeny - {datetime.now().strftime('%d.%m.%Y')}"
-    msg.attach(MIMEText(text_sumaru, 'plain'))
+    msg['Subject'] = f"Denný sumár hlásení - {datetime.now().strftime('%d.%m.%Y')}"
+    msg.attach(MIMEText(text, 'plain'))
 
-    server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
+    server = smtplib.SMTP("://gmail.com", 587)
     server.starttls()
-    server.login(SENDER_EMAIL, SENDER_PASSWORD)
+    server.login(MOJ_MAIL, MOJE_HESLO)
     server.send_message(msg)
     server.quit()
 
-# --- GRAFICKÉ ROZHRANIE ---
-st.title("📋 Interné hlásenia")
+# --- ROZHRANIE ---
+st.title("📋 Systém prevádzkových hlásení")
 
-tab1, tab2 = st.tabs(["📝 Pracovisko", "👑 Vedúci"])
+t1, t2 = st.tabs(["🏗️ Pracovisko", "👑 Rozhranie veliteľa"])
 
-with tab1:
-    with st.form("form_pracovisko", clear_on_submit=True):
-        pracovisko = st.selectbox("Pracovisko", ["Linka A", "Linka B", "Sklad"])
-        stav = st.radio("Stav", ["OK", "Problém"])
-        poznamka = st.text_area("Správa")
-        if st.form_submit_button("Uložiť"):
-            teraz = datetime.now().strftime("%d.%m.%Y %H:%M")
-            sh.append_row([teraz, pracovisko, stav, poznamka, "Nie"])
-            st.success("Uložené!")
+with t1:
+    st.subheader("Nové hlásenie")
+    with st.form("form_vstup", clear_on_submit=True):
+        prac = st.selectbox("Vyberte linku/pracovisko", ["Linka A", "Linka B", "Sklad", "Expedícia"])
+        stav = st.radio("Stav", ["V poriadku", "Zdržanie", "Porucha/Problém"])
+        popis = st.text_area("Hlásenie (čo sa deje?)")
+        
+        if st.form_submit_button("Odoslať veliteľovi"):
+            cas = datetime.now().strftime("%d.%m.%Y %H:%M")
+            # Zápis: Dátum, Pracovisko, Stav, Hlásenie, Odoslané?
+            sh.append_row([cas, prac, stav, popis, "Nie"])
+            st.success("Hlásenie bolo uložené.")
 
-with tab2:
-    heslo = st.text_input("Heslo", type="password")
+with t2:
+    heslo = st.text_input("Vstupné heslo", type="password")
     if heslo == "admin123":
-        data = sh.get_all_records()
-        if data:
-            df = pd.DataFrame(data)
+        vsetky_data = sh.get_all_records()
+        if vsetky_data:
+            df = pd.DataFrame(vsetky_data)
             neodoslane = df[df['Odoslane'] == 'Nie']
+            
             if not neodoslane.empty:
-                st.dataframe(neodoslane)
-                prijemca = st.text_input("Poslať na email", "sef@firma.sk")
-                if st.button("Odoslať mailom"):
-                    text = "Sumár:\n\n" + neodoslane.to_string()
-                    poslat_email(text, prijemca)
-                    # Označíme ako odoslané (zjednodušene)
-                    for i, r in enumerate(data, start=2):
-                        if r['Odoslane'] == 'Nie': sh.update_cell(i, 5, 'Ano')
-                    st.success("Odoslané!")
+                st.write("Neposlané hlásenia od pracovníkov:")
+                st.table(neodoslane)
+                
+                sef_mail = st.text_input("Email nadriadeného", "nadriadeny@firma.sk")
+                if st.button("Odoslať sumár šéfovi"):
+                    telo = "Dobrý deň,\n\npripájam hlásenia z dnešnej zmeny:\n\n"
+                    for _, r in neodoslane.iterrows():
+                        telo += f"📍 {r['Pracovisko']} | {r['Stav']}\n{r['Poznamka']}\n(Čas: {r['Datum']})\n\n"
+                    
+                    poslat_email(telo, sef_mail)
+                    
+                    # Označíme ako poslané v tabuľke
+                    for i, row in enumerate(vsetky_data, start=2):
+                        if row['Odoslane'] == 'Nie':
+                            sh.update_cell(i, 5, 'Ano')
+                    
+                    st.success("Mail bol úspešne odoslaný!")
                     st.rerun()
+            else:
+                st.info("Žiadne nové hlásenia.")
+        else:
+            st.info("Databáza je prázdna.")
