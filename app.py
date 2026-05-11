@@ -7,8 +7,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
-# --- KONFIGURÁCIA Z TVOJHO JSONU (OVERENÁ) ---
-GOOGLE_JSON = {
+# --- KONFIGURÁCIA GOOGLE (OPRAVENÉ ADRESY AJ EMAIL) ---
+GOOGLE_INFO = {
   "type": "service_account",
   "project_id": "hlasenia-app",
   "private_key_id": "9ee2d60b548a078036d897c26ab07e138520caf6",
@@ -21,20 +21,22 @@ GOOGLE_JSON = {
   "client_x509_cert_url": "https://googleapis.com"
 }
 
+# Tvoj ID tabuľky
 SHEET_ID = "11mgxqbYWXZ97HA7Fz2Sihqaz9o4TDzK2Ac9iKShd4PQ"
 
 # --- PRIPOJENIE ---
 try:
     scope = ["https://googleapis.com", "https://googleapis.com"]
-    creds = Credentials.from_service_account_info(GOOGLE_JSON, scopes=scope)
-    client = gspread.authorize(creds)
-    sh = client.open_by_key(SHEET_ID).sheet1
+    creds = Credentials.from_service_account_info(GOOGLE_INFO, scopes=scope)
+    gc = gspread.authorize(creds)
+    sh = gc.open_by_key(SHEET_ID).sheet1
 except Exception as e:
     st.error(f"Chyba pripojenia: {e}")
     st.stop()
 
-# --- MAIL ---
-def poslat_email(text, prijemca):
+# --- FUNKCIA NA ODOSIELANIE MAILU ---
+def poslat_email(text_sumaru, prijemca):
+    # RIADKY 39 A 40 - TU DOPLŇ SVOJE ÚDAJE
     MOJ_MAIL = "tvoj-email@gmail.com" 
     MOJE_HESLO = "tvoj-app-password"
 
@@ -42,7 +44,7 @@ def poslat_email(text, prijemca):
     msg['From'] = MOJ_MAIL
     msg['To'] = prijemca
     msg['Subject'] = f"Denný sumár hlásení - {datetime.now().strftime('%d.%m.%Y')}"
-    msg.attach(MIMEText(text, 'plain'))
+    msg.attach(MIMEText(text_sumaru, 'plain'))
 
     server = smtplib.SMTP("://gmail.com", 587)
     server.starttls()
@@ -50,32 +52,41 @@ def poslat_email(text, prijemca):
     server.send_message(msg)
     server.quit()
 
-# --- WEB ---
-st.title("📋 Systém hlásení")
-tab1, tab2 = st.tabs(["🏗️ Pracovisko", "👑 Veliteľ"])
+# --- INTERFACE ---
+st.title("📋 Systém prevádzkových hlásení")
+tab1, tab2 = st.tabs(["🏗️ Pracovisko", "👑 Vedúci zmeny"])
 
 with tab1:
-    with st.form("f1", clear_on_submit=True):
-        prac = st.selectbox("Pracovisko", ["Linka A", "Linka B", "Sklad"])
+    st.subheader("Nové hlásenie")
+    with st.form("form_prac", clear_on_submit=True):
+        prac = st.selectbox("Vyberte linku", ["Linka A", "Linka B", "Sklad"])
         stav = st.radio("Stav", ["OK", "Problém"])
-        txt = st.text_area("Správa")
-        if st.form_submit_button("Odoslať"):
-            sh.append_row([datetime.now().strftime("%d.%m.%Y %H:%M"), prac, stav, txt, "Nie"])
-            st.success("Hlásenie uložené!")
+        txt = st.text_area("Detail hlásenia")
+        if st.form_submit_button("Uložiť hlásenie"):
+            cas = datetime.now().strftime("%d.%m.%Y %H:%M")
+            sh.append_row([cas, prac, stav, txt, "Nie"])
+            st.success("Hlásenie bolo úspešne uložené.")
 
 with tab2:
-    heslo = st.text_input("Heslo", type="password")
+    heslo = st.text_input("Vstupné heslo", type="password")
     if heslo == "admin123":
         vsetky = sh.get_all_records()
         if vsetky:
             df = pd.DataFrame(vsetky)
             if 'Odoslane' in df.columns:
                 neodoslane = df[df['Odoslane'] == 'Nie']
-                st.dataframe(neodoslane)
-                mail_sefa = st.text_input("Email nadriadeného", "nadriadeny@firma.sk")
-                if st.button("Poslať mailom"):
-                    poslat_email(neodoslane.to_string(index=False), mail_sefa)
-                    for i, r in enumerate(vsetky, start=2):
-                        if r.get('Odoslane') == 'Nie': sh.update_cell(i, 5, 'Ano')
-                    st.success("Odoslané!")
-                    st.rerun()
+                if not neodoslane.empty:
+                    st.dataframe(neodoslane)
+                    mail_boss = st.text_input("Poslať na email", "nadriadeny@firma.sk")
+                    if st.button("Schváliť a poslať mailom"):
+                        sumar = "Prehľad hlásení:\n\n" + neodoslane.to_string(index=False)
+                        try:
+                            poslat_email(sumar, mail_boss)
+                            # Zmeníme 'Nie' na 'Ano' v stĺpci 5
+                            for i, r in enumerate(vsetky, start=2):
+                                if r.get('Odoslane') == 'Nie':
+                                    sh.update_cell(i, 5, 'Ano')
+                            st.success("Odoslané!")
+                            st.rerun()
+                        except Exception as ex:
+                            st.error(f"Chyba pri maili: {ex}")
