@@ -18,8 +18,8 @@ URL_TABULKY = "https://docs.google.com/spreadsheets/d/11mgxqbYWXZ97HA7Fz2Sihqaz9
 # --- FUNKCIA NA MAIL ---
 def poslat_email(text, prijemca):
     # !!! SEM DOPLŇ SVOJE OVERENÉ ÚDAJE !!!
-    MOJ_MAIL = "tvoj-email@gmail.com" 
-    MOJE_HESLO = "tvoj-app-password"
+    MOJ_MAIL = "zmenovehlasenie@gmail.com" 
+    MOJE_HESLO = "qvib ewfm liku yfum"
 
     msg = MIMEMultipart()
     msg['From'] = MOJ_MAIL
