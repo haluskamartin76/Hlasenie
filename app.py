@@ -9,10 +9,10 @@ from datetime import datetime
 # --- NASTAVENIA ---
 st.set_page_config(page_title="Systém hlásení", layout="centered")
 
-# Prepojenie na Google Sheets (používa nastavenia zo Secrets)
+# Prepojenie na Google Sheets (používa presne tvoje nastavenia zo Secrets)
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Tvoja URL tabuľky a názov listu
+# Tvoje údaje
 URL_TABULKY = "https://google.com"
 NAZOV_LISTU = "Hlasenia_Data"
 
@@ -54,7 +54,7 @@ with t1:
                 # Načítanie existujúcich dát z konkrétneho listu
                 df_existing = conn.read(spreadsheet=URL_TABULKY, worksheet=NAZOV_LISTU)
                 
-                # Vytvorenie nového riadku (stĺpce presne podľa tvojho zadania)
+                # Vytvorenie nového riadku
                 new_row = pd.DataFrame([{
                     "Datum": datetime.now().strftime("%d.%m.%Y %H:%M"),
                     "Pracovisko": prac,
@@ -66,9 +66,10 @@ with t1:
                 # Spojenie a aktualizácia
                 updated_df = pd.concat([df_existing, new_row], ignore_index=True)
                 conn.update(spreadsheet=URL_TABULKY, worksheet=NAZOV_LISTU, data=updated_df)
-                st.success("Hlásenie bolo úspešne uložené do tabuľky Hlasenia_Data!")
+                st.success(f"Hlásenie uložené do listu {NAZOV_LISTU}!")
             except Exception as e:
-                st.error(f"Chyba pri zápise: {e}")
+                st.error("Chyba pri zápise!")
+                st.exception(e) # Toto vypíše presný technický dôvod chyby
 
 with t2:
     st.subheader("Sekcia pre veliteľa")
@@ -77,7 +78,6 @@ with t2:
         try:
             df = conn.read(spreadsheet=URL_TABULKY, worksheet=NAZOV_LISTU)
             if df is not None and not df.empty:
-                # Filtrujeme len neodoslané
                 neodoslane = df[df['Odoslane'].astype(str).str.contains('Nie', case=False, na=False)]
                 
                 if not neodoslane.empty:
@@ -91,14 +91,11 @@ with t2:
                             telo += f"📍 {r['Pracovisko']} | {r['Stav']}\n{r['Poznamka']}\n({r['Datum']})\n\n"
                         
                         if poslat_email(telo, mail_sefa):
-                            # Zmena statusu na 'Ano' v hlavnom DataFrame
                             df.loc[df['Odoslane'].astype(str).str.contains('Nie', case=False, na=False), 'Odoslane'] = 'Ano'
                             conn.update(spreadsheet=URL_TABULKY, worksheet=NAZOV_LISTU, data=df)
-                            st.success("Odoslané a archivované!")
+                            st.success("Odoslané!")
                             st.rerun()
                 else:
-                    st.info("Žiadne nové hlásenia na odoslanie.")
-            else:
-                st.info("Tabuľka je prázdna.")
+                    st.info("Žiadne nové hlásenia.")
         except Exception as e:
             st.error(f"Chyba pri práci s dátami: {e}")
