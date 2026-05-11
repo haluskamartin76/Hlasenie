@@ -7,8 +7,8 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
 
-# --- MOJE GOOGLE ÚDAJE (PRESNÁ KONFIGURÁCIA) ---
-GOOGLE_INFO = {
+# --- MOJE GOOGLE ÚDAJE (OPRAVENÉ ADRESY) ---
+GOOGLE_JSON = {
   "type": "service_account",
   "project_id": "hlasenia-app",
   "private_key_id": "9ee2d60b548a078036d897c26ab07e138520caf6",
@@ -18,16 +18,18 @@ GOOGLE_INFO = {
   "auth_uri": "https://google.com",
   "token_uri": "https://googleapis.com",
   "auth_provider_x509_cert_url": "https://googleapis.com",
-  "client_x509_cert_url": "https://googleapis.com"
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/streamlit-db%40://gserviceaccount.com"
 }
+
+SHEET_ID = "11mgxqbYWXZ97HA7Fz2Sihqaz9o4TDzK2Ac9iKShd4PQ"
 
 # --- PRIPOJENIE ---
 try:
     scope = ["https://googleapis.com", "https://googleapis.com"]
-    creds = Credentials.from_service_account_info(GOOGLE_INFO, scopes=scope)
+    creds = Credentials.from_service_account_info(GOOGLE_JSON, scopes=scope)
     client = gspread.authorize(creds)
-    # Otvárame pomocou ID tabuľky, čo je najodolnejšie voči chybám
-    sh = client.open_by_key("11mgxqbYWXZ97HA7Fz2Sihqaz9o4TDzK2Ac9iKShd4PQ").sheet1
+    # Otvárame cez čisté ID
+    sh = client.open_by_key(SHEET_ID).sheet1
 except Exception as e:
     st.error(f"Chyba pripojenia: {e}")
     st.stop()
@@ -35,13 +37,13 @@ except Exception as e:
 # --- FUNKCIA NA MAIL ---
 def poslat_email(text, prijemca):
     # !!! SEM DOPLŇ SVOJ MAIL A APP PASSWORD !!!
-    MOJ_MAIL = "tvoj-email@gmail.com" 
-    MOJE_HESLO = "tvoj-app-password"
+    MOJ_MAIL = "zmenovehlasenie@gmail.com" 
+    MOJE_HESLO = "qvib ewfm liku yfum"
 
     msg = MIMEMultipart()
     msg['From'] = MOJ_MAIL
     msg['To'] = prijemca
-    msg['Subject'] = f"Denný sumár hlásení - {datetime.now().strftime('%d.%m.%Y')}"
+    msg['Subject'] = f"Sumár hlásení - {datetime.now().strftime('%d.%m.%Y')}"
     msg.attach(MIMEText(text, 'plain'))
 
     server = smtplib.SMTP("://gmail.com", 587)
@@ -50,12 +52,12 @@ def poslat_email(text, prijemca):
     server.send_message(msg)
     server.quit()
 
-# --- ROZHRANIE ---
+# --- WEB ---
 st.title("📋 Systém hlásení")
 tab1, tab2 = st.tabs(["🏗️ Pracovisko", "👑 Veliteľ"])
 
 with tab1:
-    with st.form("form_pracovisko", clear_on_submit=True):
+    with st.form("f1", clear_on_submit=True):
         prac = st.selectbox("Pracovisko", ["Linka A", "Linka B", "Sklad"])
         stav = st.radio("Stav", ["OK", "Problém"])
         txt = st.text_area("Správa")
@@ -65,19 +67,20 @@ with tab1:
             st.success("Hlásenie uložené!")
 
 with tab2:
-    heslo = st.text_input("Vstupné heslo", type="password")
+    heslo = st.text_input("Heslo", type="password")
     if heslo == "admin123":
         vsetky = sh.get_all_records()
         if vsetky:
             df = pd.DataFrame(vsetky)
             if 'Odoslane' in df.columns:
                 neodoslane = df[df['Odoslane'] == 'Nie']
-                if not neodoslane.empty:
-                    st.dataframe(neodoslane)
-                    mail_sefa = st.text_input("Email nadriadeného", "nadriadeny@firma.sk")
-                    if st.button("Poslať sumár mailom"):
-                        poslat_email(neodoslane.to_string(), mail_sefa)
-                        for i, r in enumerate(vsetky, start=2):
-                            if r.get('Odoslane') == 'Nie': sh.update_cell(i, 5, 'Ano')
-                        st.success("Odoslané!")
-                        st.rerun()
+                st.dataframe(neodoslane)
+                mail_sefa = st.text_input("Email nadriadeného", "nadriadeny@firma.sk")
+                if st.button("Odoslať sumár"):
+                    telo = "Sumár:\n\n" + neodoslane.to_string(index=False)
+                    poslat_email(telo, mail_sefa)
+                    for i, r in enumerate(vsetky, start=2):
+                        if r.get('Odoslane') == 'Nie':
+                            sh.update_cell(i, 5, 'Ano')
+                    st.success("Odoslané!")
+                    st.rerun()
