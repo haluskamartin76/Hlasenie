@@ -52,7 +52,7 @@ with t1:
         if st.form_submit_button("Uložiť hlásenie"):
             try:
                 # Načítanie cez ID tabuľky
-                df_existing = conn.read(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU)
+                df_existing = conn.read(spreadsheet=Hlasenia_Data, worksheet=Hlasenia_Data)
                 
                 new_row = pd.DataFrame([{
                     "Datum": datetime.now().strftime("%d.%m.%Y %H:%M"),
