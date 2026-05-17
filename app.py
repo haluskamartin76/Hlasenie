@@ -64,7 +64,7 @@ with t1:
                 
                 updated_df = pd.concat([df_existing, new_row], ignore_index=True)
                 # Update cez ID tabuľky
-                conn.update(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU, data=updated_df)
+                conn.update(spreadsheet=Hlasenia_Data, worksheet=Hlasenia_Data, data=updated_df)
                 st.success(f"Hlásenie úspešne uložené!")
             except Exception as e:
                 st.error("Chyba pri zápise!")
@@ -76,7 +76,7 @@ with t2:
     if heslo == "admin123":
         try:
             # Načítanie cez ID tabuľky
-            df = conn.read(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU)
+            df = conn.read(spreadsheet=Hlasenia_Data, worksheet=Hlasenia_Data)
             if df is not None and not df.empty:
                 neodoslane = df[df['Odoslane'].astype(str).str.contains('Nie', case=False, na=False)]
                 
@@ -92,7 +92,7 @@ with t2:
                         
                         if poslat_email(telo, mail_sefa):
                             df.loc[df['Odoslane'].astype(str).str.contains('Nie', case=False, na=False), 'Odoslane'] = 'Ano'
-                            conn.update(spreadsheet=ID_TABULKY, worksheet=NAZOV_LISTU, data=df)
+                            conn.update(spreadsheet=Hlasenia_Data, worksheet=Hlasenia_Data, data=df)
                             st.success("Odoslané!")
                             st.rerun()
                 else:
